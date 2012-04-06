@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name: Generic Exporter
-Plugin URI: TODO
+Plugin URI: https://github.com/hstrowd/Generic-Exporter
 Description: Provides an interface for exporting a variety of data from your WordPress site.
 Version: 0.01
 Author: Harrison Strowd
