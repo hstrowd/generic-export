@@ -1,11 +1,11 @@
 Generic Exporter
 ==============
-Contributors: hstrowd
-Donate link: http://www.hstrowd.com/
-Tags: export
-Requires at least: 2.0.2
-Tested up to: 2.1
-Stable tag: 4.3
+* Contributors: hstrowd
+* Donate link: http://www.hstrowd.com/
+* Tags: export
+* Requires at least: 2.0.2
+* Tested up to: 2.1
+* Stable tag: 4.3
 
 An extensible framework for exporting data from your WordPress site.
 
