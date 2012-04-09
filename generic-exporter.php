@@ -28,7 +28,9 @@ License: GPL2
 /* TODO List:
     - Add documentation for how to add new exporters
     - Add support for multiple export formats
-    - Add support for storing copies of all exported content on the server and making them available for download (include configuration values for how often this should be cleaned).
+    - Add support for cleaning out the backed up exports. 
+    - Make backups available for download.
+    - Add global configuration for how long the backups should be kept for and the directory on the server to use.
     - Add support for verifying that a plugin is installed before it is deemed a "supported" content type.
 */
 
@@ -53,7 +55,8 @@ if($_POST['action']); {
     $content_type = $_POST['content-type'];
     $content_to_export = $_POST['content-to-export'];
     $mark_as_exported = $_POST['mark-as-exported'];
-    $generic_exporter->export_content($content_type, $content_to_export, $mark_as_exported); 
+    $backup_output = $_POST['backup-output'];
+    $generic_exporter->export_content($content_type, $content_to_export, $mark_as_exported, $backup_output); 
     break;
   }
 }
@@ -71,6 +74,7 @@ class GenericExporter {
   // TODO: Dynamically load this based on the content in the exporters directory.
   public static $supported_content_types = 
     array( 'visual-form-builder' => array('Visual Form Builder', 'VisualFormBuilderExporter') );
+
 
   /* Required WordPress Hooks -- BEGIN */
 
@@ -90,6 +94,13 @@ class GenericExporter {
 		    $content_type_key . '-exporter.php' );
     }
 
+    // Ensure the export backup directory exists.
+    // TODO: Make this a constant.
+    $backup_dir = WP_CONTENT_DIR . '/generic_export_backups';
+    if(!is_dir($backup_dir) && !mkdir($backup_dir)) {
+      // Set notice to notify the user that the backups directory could not be created.
+      add_action('admin_notices', array( &$this, 'unable_to_create_backups_dir' ));
+    }
   }
 
   public function generic_exporter_menu() {
@@ -171,6 +182,13 @@ class GenericExporter {
           <div class="label">Mark Content as Exported: </div>
           <div class="mark_as_exported_selection">
             <input type="checkbox" name="mark-as-exported" value="1" checked>
+          </div>
+        </div>
+
+        <div id="backup_output" class="export_option">
+          <div class="label">Store Backup of Result on the Server: </div>
+          <div class="backup_output_selection">
+            <input type="checkbox" name="backup-output" value="1" checked>
           </div>
         </div>
 
@@ -311,7 +329,8 @@ class GenericExporter {
   }
 
   // Handles user action for exporting content.
-  public function export_content($content_type, $content_to_export, $mark_as_exported) {
+  // TODO: Add default arguments.
+  public function export_content($content_type, $content_to_export, $mark_as_exported, $backup_output) {
     $exporter_class = self::$supported_content_types[$content_type][1];
     $exporter = new $exporter_class();
 
@@ -329,6 +348,23 @@ class GenericExporter {
 
     if(count($entry_ids) > 0) {
       $output = $exporter->export_entries($entry_ids);
+      $filename = date("Y-m-d_H.i.s") . '-' . $content_to_export . '-' . $content_type . '.csv';
+
+      if($backup_output) {
+	// Write output to a backup file on the server.
+	$backup_dir = WP_CONTENT_DIR . '/generic_export_backups';
+	if($file = fopen($backup_dir . '/' . $filename, 'w')) {
+	  fwrite($file, $output);
+	  fclose($file);
+	} else {
+	  // If we are unable to backup the content, the user should be notified, there
+          // should be no lasting impact of this action, and the content should not be
+          // delivered to the user.
+	  // Set notice to notify the user that the backups directory could not be created.
+	  add_action('admin_notices', array( &$this, 'unable_to_create_backup' ));
+	  return;
+	}
+      }
 
       // Only update entries, if told to do so.
       if($mark_as_exported) {
@@ -337,7 +373,7 @@ class GenericExporter {
 
       /* Change our header so the browser spits out a CSV file to download */
       header('Content-type: text/csv');
-      header('Content-Disposition: attachment; filename="' . date( 'Y-m-d' ) . '-entries.csv"');
+      header('Content-Disposition: attachment; filename="' . $filename . '"');
       ob_clean();
 
       echo $output;
@@ -351,6 +387,16 @@ class GenericExporter {
   public function no_content_to_export_notice() {
     echo "<div class=\"error\">No content found to export.</div>";
     remove_action('admin_notices', array( &$this, 'no_content_to_export_notice' ));
+  }
+
+  public function unable_to_create_backups_dir() {
+    echo "<div class=\"warning\">Unable to create the export backup directory in the wp-content directory. Please make sure that the web server has write access to this directory.</div>";
+    remove_action('admin_notices', array( &$this, 'unable_to_create_backups_dir' ));
+  }
+
+  public function unable_to_create_backup() {
+    echo "<div class=\"error\">Unable to create a backup of the content exported, as requested. Please make sure that the web server has write access to this directory.</div>";
+    remove_action('admin_notices', array( &$this, 'unable_to_create_backup' ));
   }
 }
 
