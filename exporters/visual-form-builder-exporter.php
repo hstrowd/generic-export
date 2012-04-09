@@ -20,6 +20,13 @@ class VisualFormBuilderExporter {
     return $entry_ids;
   }
 
+  function get_all_entries() {
+    global $wpdb;
+    
+    $entry_ids = $wpdb->get_col( "SELECT entries.entries_id FROM $this->entries_table_name AS entries" );
+    return $entry_ids;
+  }
+
   function mark_entries_exported( $entry_ids = NULL ) {
     global $wpdb;
     

@@ -29,7 +29,6 @@ License: GPL2
     - Add documentation for how to add new exporters
     - Add support for multiple export formats
     - Add support for exporting without marking content as exported
-    - Add support for exporting all content or just the non-exported content
     - Add support for storing copies of all exported content on the server and making them available for download (include configuration values for how often this should be cleaned).
     - Add support for verifying that a plugin is installed before it is deemed a "supported" content type.
 */
@@ -46,9 +45,15 @@ if($_GET['action']); {
   case 'deactivate-content-type': 
     $generic_exporter->deactivate_content_type($content_type); 
     break;
-    //TODO: Add support for different types of exports (e.g. all, without update, etc.).
+  }
+}
+
+if($_POST['action']); {
+  switch($_POST['action']) {
   case 'export-content': 
-    $generic_exporter->export_content($content_type); 
+    $content_type = $_POST['content-type'];
+    $content_to_export = $_POST['content-to-export'];
+    $generic_exporter->export_content($content_type, $content_to_export); 
     break;
   }
 }
@@ -122,21 +127,51 @@ class GenericExporter {
       if(count($activated_types) > 0) { 
      ?>
     <div class="export">
-       <h3>Data Export</h3>
-       <p>Select the content type you would like to export:</p>
-       <?php
-         foreach($activated_types as $content_type_key) {
-        ?>
-       <div class="content_type">
-         <div class="name"><?php echo self::$supported_content_types[$content_type_key][0]; ?></div>
-         <div class="export_link">
-           <a href="?page=generic-exporter&action=export-content&content-type=<?php echo $content_type_key; ?>" class="button">Export</a>
-         </div>
-         <div class="clear"></div>
-       </div>
-       <?php
-         }
-        ?>
+      <h3>Data Export</h3>
+      <p>Select the appropriate export options:</p>
+
+      <form id="export-content" action method="post">
+        <input name="action" type="hidden" value="export-content">
+        <input type="hidden" name="_wp_http_referer" 
+          value="/restore_dev/wp-admin/options-general.php?page=generic-exporter">
+
+        <div class="content_type">
+          <div class="label">Type of Content: </div>
+          <div class="content_type_selection">
+            <select size="1" name="content-type">
+              <?php
+                foreach($activated_types as $content_type_key) {
+               ?>
+                <option value="<?php echo $content_type_key; ?>">
+                  <?php echo self::$supported_content_types[$content_type_key][0]; ?>
+                </option>             
+              <?php
+                }
+               ?>
+            </select>
+          </div>
+          <div class="clear"></div>
+        </div>
+
+        <div class="content_to_export">
+          <div class="label">Content to Export: </div>
+          <div class="content_to_export_selection">
+            <label for="export-non-exported">
+              <input type="radio" name="content-to-export" value="non-exported" checked="true">
+              <span>Records Not Previously Exported</span>
+            </label>
+            <label for="export-all">
+              <input type="radio" name="content-to-export" value="all">
+              <span>All Records</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <input type="submit" value="Export" class="button" />
+        </div>
+      </form>
+
     </div>
     <?php
       }
@@ -150,17 +185,17 @@ class GenericExporter {
         foreach(self::$supported_content_types as $content_type_key => $content_type_array) {
        ?>
       <div class="content_type">
-        <div class="name"><?php echo $content_type_array[0]; ?></div>
+        <div class="label"><?php echo $content_type_array[0]; ?></div>
         <?php 
           if(!in_array($content_type_key, $activated_types)) { 
          ?>
-        <div class="activation_link">
+        <div class="activation_button">
           <a href="?page=generic-exporter&action=activate-content-type&content-type=<?php echo $content_type_key; ?>" class="button">Activate</a>
         </div>
         <?php
           } else {
          ?>
-        <div class="deactivation_link">
+        <div class="deactivation_button">
           <a href="?page=generic-exporter&action=deactivate-content-type&content-type=<?php echo $content_type_key; ?>" class="button">Deactivate</a>
         </div>
         <?php
@@ -181,9 +216,6 @@ class GenericExporter {
     // TODO: This is ugly! find a better way to isolate this and pull it into the admin page.
     ?>
     <style type="text/css">
-      .generic_exporter_admin h3 {
-        margin-top: 35px;
-      }
       .error, .warning {
         max-width: 600px;
         margin: 10px 0 20px 0;
@@ -201,17 +233,31 @@ class GenericExporter {
       .warning {
         background-color: #FFFFCC;
       }
+
+      .generic_exporter_admin h3 {
+        margin-top: 35px;
+      }
+      .generic_exporter_admin .label {
+        margin-right: 10px;
+        float: left;
+        vertical-align: middle;
+        font-weight: bold;
+      }
+
       .content_type {
         margin: 10px;
       }
-      .content_type .name {
-        margin-right: 10px;
-        float: left;
-        font-weight: bold;
+      .content_to_export {
+        margin: 10px;
       }
-      .export_link, .activation_link, .deactivation_link {
+      .export .button {
+        margin: 5px 0 0 20px;
+      }
+
+      .activation_button, .deactivation_button {
         float: left;
       }
+
       .clear {
         clear:both;
       }
@@ -261,10 +307,21 @@ class GenericExporter {
   }
 
   // Handles user action for exporting content.
-  public function export_content($content_type) {
+  public function export_content($content_type, $content_to_export) {
     $exporter_class = self::$supported_content_types[$content_type][1];
     $exporter = new $exporter_class();
-    $entry_ids = $exporter->get_unexported_entries();
+
+    switch($content_to_export) {
+    case "non-exported":
+      $entry_ids = $exporter->get_unexported_entries();
+      break;
+    case "all":
+      $entry_ids = $exporter->get_all_entries();
+      break;
+    default:
+      $entry_ids = array();
+      break;
+    }
 
     if(count($entry_ids) > 0) {
       $output = $exporter->export_entries($entry_ids);
