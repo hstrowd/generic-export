@@ -32,9 +32,9 @@ class VisualFormBuilderExporter {
     
     /* Setup our query to accept selected entry IDs */	
     if ( is_array( $entry_ids ) && !empty( $entry_ids ) )
-      $selected = " WHERE entries.entries_id IN (" . implode( ',', $entry_ids ) . ")";
+      $selection = " WHERE entries.entries_id IN (" . implode( ',', $entry_ids ) . ")";
   
-    $entries = $wpdb->query( "UPDATE $this->entries_table_name AS entries SET exported = TRUE $selected" );
+    $entries = $wpdb->query( "UPDATE $this->entries_table_name AS entries SET exported = TRUE $selection" );
   }
 
   // Copied directly out of visual-form-builder/class-entries-list.php
@@ -42,11 +42,11 @@ class VisualFormBuilderExporter {
     global $wpdb;
     
     /* Setup our query to accept selected entry IDs */	
-    if ( is_array( $selected ) && !empty( $selected ) )
-      $selected = " WHERE entries.entries_id IN (" . implode( ',', $selected ) . ")";
+    if ( is_array( $entry_ids ) && !empty( $entry_ids ) )
+      $selection = " WHERE entries.entries_id IN (" . implode( ',', $entry_ids ) . ")";
 
   
-    $entries = $wpdb->get_results( "SELECT entries.*, forms.form_title FROM $this->entries_table_name AS entries JOIN $this->form_table_name AS forms USING(form_id) $selected ORDER BY entries_id DESC" );
+    $entries = $wpdb->get_results( "SELECT entries.*, forms.form_title FROM $this->entries_table_name AS entries JOIN $this->form_table_name AS forms USING(form_id) $selection ORDER BY entries_id DESC" );
     
     /* If there's entries returned, do our CSV stuff */
     if ( $entries ) {
