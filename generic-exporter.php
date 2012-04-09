@@ -75,6 +75,8 @@ class GenericExporter {
   public static $supported_content_types = 
     array( 'visual-form-builder' => array('Visual Form Builder', 'VisualFormBuilderExporter') );
 
+  // The directory into which backups of executed exports will be saved.
+  var $backup_dir;
 
   /* Required WordPress Hooks -- BEGIN */
 
@@ -96,8 +98,8 @@ class GenericExporter {
 
     // Ensure the export backup directory exists.
     // TODO: Make this a constant.
-    $backup_dir = WP_CONTENT_DIR . '/generic_export_backups';
-    if(!is_dir($backup_dir) && !mkdir($backup_dir)) {
+    $this->backup_dir = plugin_dir_path( __FILE__ ) . 'export_backups';
+    if(!is_dir($this->backup_dir) && !mkdir($this->backup_dir)) {
       // Set notice to notify the user that the backups directory could not be created.
       add_action('admin_notices', array( &$this, 'unable_to_create_backups_dir' ));
     }
@@ -352,8 +354,7 @@ class GenericExporter {
 
       if($backup_output) {
 	// Write output to a backup file on the server.
-	$backup_dir = WP_CONTENT_DIR . '/generic_export_backups';
-	if($file = fopen($backup_dir . '/' . $filename, 'w')) {
+	if($file = fopen($this->backup_dir . '/' . $filename, 'w')) {
 	  fwrite($file, $output);
 	  fclose($file);
 	} else {
@@ -390,12 +391,12 @@ class GenericExporter {
   }
 
   public function unable_to_create_backups_dir() {
-    echo "<div class=\"warning\">Unable to create the export backup directory in the wp-content directory. Please make sure that the web server has write access to this directory.</div>";
+    echo "<div class=\"warning\">Unable to create the export backup directory in the " . $this->backup_dir . " directory. Please make sure that the web server has write access to this directory.</div>";
     remove_action('admin_notices', array( &$this, 'unable_to_create_backups_dir' ));
   }
 
   public function unable_to_create_backup() {
-    echo "<div class=\"error\">Unable to create a backup of the content exported, as requested. Please make sure that the web server has write access to this directory.</div>";
+    echo "<div class=\"error\">Unable to create a backup of the content exported, as requested. Please make sure that the web server has write access to the " . $this->backup_dir . " directory.</div>";
     remove_action('admin_notices', array( &$this, 'unable_to_create_backup' ));
   }
 }
