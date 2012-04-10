@@ -129,6 +129,17 @@ class GenericExporter {
 
     $activated_types = get_option('generic-exporter-active-content-types');
 
+    // Build a list of all backup files.
+    $export_backups = array();
+    if($backup_handle = opendir($this->backup_dir)) {
+      while (false !== ($backup_filename = readdir($backup_handle))) {
+	// Don't include directories.
+        if(!is_dir($this->backup_dir . '/' . $backup_filename)) {
+	  $export_backups[] = $backup_filename;
+	}
+      }
+    }
+
     // TODO: This is really ugly! Find another way of producing this content.
     ?>
 
@@ -199,6 +210,28 @@ class GenericExporter {
         </div>
       </form>
 
+    </div>
+    <?php
+      }
+     ?>
+
+    <?php
+      if(count($export_backups) > 0) { 
+     ?>
+    <div class="export">
+      <h3>Export Backups</h3>
+      <p>The following backup files are available for downloading:</p>
+      <ul>
+      <?php
+	foreach($export_backups as $backup_filename) {
+       ?>
+        <li>
+          <a href="<?php echo plugins_url( 'export_backups/' . $backup_filename , __FILE__ ); ?>"><?php echo $backup_filename; ?></a>
+        </li>
+      <?php
+	}
+       ?>
+      </ul>
     </div>
     <?php
       }
