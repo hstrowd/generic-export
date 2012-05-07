@@ -14,8 +14,11 @@ class GenericExporter {
   public static $supported_content_types = 
     array( 'visual-form-builder' => array('Visual Form Builder', 'VisualFormBuilderExporter') );
 
-  // The directory into which backups of executed exports will be saved.
-  var $backup_dir;
+  // The directory into which backups of executed exports will be saved. I wanted to make this
+  // a constant but since it is a calculated value, I couldn't get it to work.
+  public static function backup_dir() {
+    return plugin_dir_path( __FILE__ ) . 'export_backups';
+  }
 
   /* Required WordPress Hooks -- BEGIN */
 
@@ -28,9 +31,7 @@ class GenericExporter {
     }
 
     // Ensure the export backup directory exists.
-    // TODO: Make this a constant.
-    $this->backup_dir = plugin_dir_path( __FILE__ ) . 'export_backups';
-    if(!is_dir($this->backup_dir) && !mkdir($this->backup_dir)) {
+    if(!is_dir(self::backup_dir()) && !mkdir(self::backup_dir())) {
       // Set notice to notify the user that the backups directory could not be created.
       add_action('admin_notices', array( &$this, 'unable_to_create_backups_dir' ));
     }
@@ -42,10 +43,11 @@ class GenericExporter {
     $exporter = new $exporter_class();
 
     /* Update the plugin option. */
-    $activated_types = get_option('generic-exporter-active-content-types');
+    $activated_types = get_option('generic-export-active-content-types');
     if(!in_array($content_type, $activated_types)) {
+      echo "adding content type";
       array_push($activated_types, $content_type);
-      update_option('generic-exporter-active-content-types', $activated_types);
+      update_option('generic-export-active-content-types', $activated_types);
     }
 
     /* Add an exported column to the appropriate table. */
@@ -61,13 +63,13 @@ class GenericExporter {
     $exporter = new $exporter_class();
 
     /* Update the plugin options. */
-    $activated_types = get_option('generic-exporter-active-content-types');
+    $activated_types = get_option('generic-export-active-content-types');
     if(in_array($content_type, $activated_types)) {
       $keys = array_keys($activated_types, $content_type);
       foreach($keys as $key) {
 	unset($activated_types[$key]);
       }
-      update_option('generic-exporter-active-content-types', $activated_types);
+      update_option('generic-export-active-content-types', $activated_types);
     }
 
     $content_table_name = $exporter->content_table_name();
@@ -80,10 +82,7 @@ class GenericExporter {
   // Handles user action for exporting content.
   // TODO: Add default arguments.
   public function export_content($content_type, $content_to_export, $mark_as_exported, $backup_output) {
-    $activated_types = get_option('generic-exporter-active-content-types');
-    echo "content type: '" . $content_type . "'";
-    echo "activated types: ";
-    print_r($activated_types);
+    $activated_types = get_option('generic-export-active-content-types');
     if(!in_array($content_type, $activated_types)) {
       add_action('admin_notices', array( &$this, 'content_type_not_activated' ));      
       return;
@@ -110,7 +109,7 @@ class GenericExporter {
 
       if($backup_output) {
 	// Write output to a backup file on the server.
-	if($file = fopen($this->backup_dir . '/' . $filename, 'w')) {
+	if($file = fopen(self::backup_dir() . '/' . $filename, 'w')) {
 	  fwrite($file, $output);
 	  fclose($file);
 	} else {
@@ -128,7 +127,7 @@ class GenericExporter {
         $exporter->mark_entries_exported($entry_ids);
       }
 
-      return $output;
+      return array($filename, $output);
     } else {
       add_action('admin_notices', array( &$this, 'no_content_to_export_notice' ));
     }
@@ -140,7 +139,7 @@ class GenericExporter {
   }
 
   public function unable_to_create_backups_dir() {
-    echo "<div class=\"warning\">Unable to create the export backup directory in the " . $this->backup_dir . " directory. Please make sure that the web server has write access to this directory.</div>";
+    echo "<div class=\"warning\">Unable to create the export backup directory in the " . self::backup_dir() . " directory. Please make sure that the web server has write access to this directory.</div>";
     remove_action('admin_notices', array( &$this, 'unable_to_create_backups_dir' ));
   }
 
@@ -150,7 +149,7 @@ class GenericExporter {
   }
 
   public function unable_to_create_backup() {
-    echo "<div class=\"error\">Unable to create a backup of the content exported, as requested. Please make sure that the web server has write access to the " . $this->backup_dir . " directory.</div>";
+    echo "<div class=\"error\">Unable to create a backup of the content exported, as requested. Please make sure that the web server has write access to the " . self::backup_dir() . " directory.</div>";
     remove_action('admin_notices', array( &$this, 'unable_to_create_backup' ));
   }
 }

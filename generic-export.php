@@ -38,50 +38,48 @@ License: GPL2
     - Allow per form export.
 */
 
-if(false) {
-  echo "<br/><br/>";
-}
+require_once( trailingslashit( plugin_dir_path( __FILE__ ) ) . '/generic-exporter.php' );
 
 if ( is_admin() ){
   //Actions
-  add_action( 'admin_menu', array( 'generic_exporter_menu' ) );
-  add_action( 'admin_init', array( 'register_generic_exporter_settings' ) );
-  add_action( 'admin_head', array( 'generic_exporter_styles' ) );
+  add_action( 'admin_menu', 'generic_export_menu' );
+  add_action( 'admin_init', 'register_generic_export_settings' );
+  add_action( 'admin_head', 'generic_export_styles' );
 } else {
   // non-admin enqueues, actions, and filters
 }
 
 
-function generic_exporter_menu() {
-  add_options_page( __('Generic Exporter Options', 'generic exporter'), 
-		    __('Generic Exporter', 'generic exporter'),
+function generic_export_menu() {
+  add_options_page( __('Generic Export Options', 'generic export'), 
+		    __('Generic Export', 'generic export'),
 		    'manage_options', 
-		    'generic-exporter',
-		    array( &$this, 'generic_exporter_options' ),
+		    'generic-export',
+		    'generic_export_options',
 		    '',
 		    '' );
 }
 
-function register_generic_exporter_settings() {
-  add_option( 'generic-exporter-active-content-types', array() );
+function register_generic_export_settings() {
+  add_option( 'generic-export-active-content-types', array() );
 }
 
 /* Required WordPress Hooks -- END */
 
 // Defines the content for the admin page.
-function generic_exporter_options() {
+function generic_export_options() {
   if ( !current_user_can( 'manage_options' ) )  {
     wp_die( __( 'You do not have sufficient permissions to access this page.' ) );
   }
 
-  $activated_types = get_option('generic-exporter-active-content-types');
+  $activated_types = get_option('generic-export-active-content-types');
 
   // Build a list of all backup files.
   $export_backups = array();
-  if($backup_handle = opendir($this->backup_dir)) {
+  if($backup_handle = opendir(GenericExporter::backup_dir())) {
     while (false !== ($backup_filename = readdir($backup_handle))) {
 	// Don't include directories.
-      if(!is_dir($this->backup_dir . '/' . $backup_filename)) {
+      if(!is_dir(GenericExporter::backup_dir() . '/' . $backup_filename)) {
 	  $export_backups[] = $backup_filename;
 	}
     }
@@ -90,9 +88,9 @@ function generic_exporter_options() {
   // TODO: This is really ugly! Find another way of producing this content.
   ?>
 
-  <div class="generic_exporter_admin">
+  <div class="generic_export_admin">
   <div id="icon-options-general" class="icon32"><br></div>
-  <h2>Generic Exporter - Data Export</h2>
+  <h2>Generic Export - Data Export</h2>
 
   <?php
     if(count($activated_types) > 0) { 
@@ -104,7 +102,7 @@ function generic_exporter_options() {
     <form id="export-content" action method="post">
       <input name="action" type="hidden" value="export-content">
       <input type="hidden" name="_wp_http_referer" 
-        value="<?php echo admin_url('options-general.php?page=generic-exporter'); ?>">
+        value="<?php echo admin_url('options-general.php?page=generic-export'); ?>">
 
       <div id="content_type" class="export_option">
         <div class="label">Type of Content: </div>
@@ -114,7 +112,7 @@ function generic_exporter_options() {
               foreach($activated_types as $content_type_key) {
              ?>
               <option value="<?php echo $content_type_key; ?>">
-                <?php echo self::$supported_content_types[$content_type_key][0]; ?>
+                <?php echo GenericExporter::$supported_content_types[$content_type_key][0]; ?>
               </option>             
             <?php
               }
@@ -189,7 +187,7 @@ function generic_exporter_options() {
     <p>Use the options below to configure the content types that you would like to be exportable:</p>
     <div class="warning">WARNING: Deactivating a content type will delete the data stored in the database that tracks the content that has already been exported. This will mean that if you reactivate the plugin in the future, your first export will include all records and not just those that were not previously exported. Proceed with caution!</div>
     <?php
-      foreach(self::$supported_content_types as $content_type_key => $content_type_array) {
+      foreach(GenericExporter::$supported_content_types as $content_type_key => $content_type_array) {
      ?>
     <div class="content_type">
       <div class="label"><?php echo $content_type_array[0]; ?></div>
@@ -197,13 +195,13 @@ function generic_exporter_options() {
         if(!in_array($content_type_key, $activated_types)) { 
        ?>
       <div class="activation_button">
-        <a href="?page=generic-exporter&action=activate-content-type&content-type=<?php echo $content_type_key; ?>" class="button">Activate</a>
+        <a href="?page=generic-export&action=activate-content-type&content-type=<?php echo $content_type_key; ?>" class="button">Activate</a>
       </div>
       <?php
         } else {
        ?>
       <div class="deactivation_button">
-        <a href="?page=generic-exporter&action=deactivate-content-type&content-type=<?php echo $content_type_key; ?>" class="button">Deactivate</a>
+        <a href="?page=generic-export&action=deactivate-content-type&content-type=<?php echo $content_type_key; ?>" class="button">Deactivate</a>
       </div>
       <?php
     	   }
@@ -219,7 +217,7 @@ function generic_exporter_options() {
 }
 
 /* Basic CSS styling for the admin page. */
-function generic_exporter_styles() {
+function generic_export_styles() {
   // TODO: This is ugly! find a better way to isolate this and pull it into the admin page.
   ?>
   <style type="text/css">
@@ -241,10 +239,10 @@ function generic_exporter_styles() {
       background-color: #FFFFCC;
     }
 
-    .generic_exporter_admin h3 {
+    .generic_export_admin h3 {
       margin-top: 35px;
     }
-    .generic_exporter_admin .label {
+    .generic_export_admin .label {
       margin-right: 10px;
       float: left;
       vertical-align: middle;
@@ -269,11 +267,9 @@ function generic_exporter_styles() {
   <?php
 }
 
-require_once( trailingslashit( plugin_dir_path( __FILE__ ) ) . '/generic-exporter.php' );
-$generic_exporter = new GenericExporter();
-
 // Handlers for user actions
 if($_GET['action']); {
+  $generic_exporter = new GenericExporter();
   $content_type = $_GET['content-type'];
   switch ($_GET['action']) {
   case 'activate-content-type': 
@@ -286,13 +282,17 @@ if($_GET['action']); {
 }
 
 if($_POST['action']); {
+  $generic_exporter = new GenericExporter();
   switch($_POST['action']) {
   case 'export-content': 
     $content_type = $_POST['content-type'];
     $content_to_export = $_POST['content-to-export'];
     $mark_as_exported = $_POST['mark-as-exported'];
     $backup_output = $_POST['backup-output'];
-    $output = $generic_exporter->export_content($content_type, $content_to_export, $mark_as_exported, $backup_output); 
+    $export_result = $generic_exporter->export_content($content_type, $content_to_export, $mark_as_exported, $backup_output); 
+
+    $filename = $export_result[0];
+    $output = $export_result[1];
 
     /* Change our header so the browser spits out a CSV file to download */
     header('Content-type: text/csv');
