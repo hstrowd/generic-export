@@ -30,7 +30,7 @@ License: GPL2
     - Add support for verifying that a plugin is installed before it is deemed a "supported" content type.
     - Move admin page to the Tools section.
     - Add written explanation of each config value.
-    - Add support for multiple export formats
+    - Separate exporting and formatting.
     - Add global configuration for how long the backups should be kept for and the directory on the server to use.
     - Add different levels of permissions for activating and exporting.
 */
@@ -68,18 +68,37 @@ if($_POST['page'] == 'generic-export') {
     $mark_as_exported = $_POST['mark-as-exported'];
     $backup_output = $_POST['backup-output'];
     $export_result = $generic_exporter->export_content($content_type, $content_to_export, $mark_as_exported, $backup_output); 
+    switch($export_result[0]) {
+    case 'success':
+      $filename = $export_result[1];
+      $output = $export_result[2];
 
-    $filename = $export_result[0];
-    $output = $export_result[1];
+      // Change our header so the browser spits out a CSV file to download.
+      header('Content-type: text/csv');
+      header('Content-Disposition: attachment; filename="' . $filename . '"');
+      ob_clean();
 
-    /* Change our header so the browser spits out a CSV file to download */
-    header('Content-type: text/csv');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    ob_clean();
+      echo $output;
 
-    echo $output;
-
-    die();
+      die();
+      break;
+    case 'content_type_not_found':
+      add_action('admin_notices', 'content_type_not_supported');      
+      break;
+    case 'inactive_content_type':
+      add_action('admin_notices', 'content_type_not_activated');
+      break;
+    case 'unable_to_create_backup':
+      // If we are unable to backup the content, the user should be notified, there
+      // should be no lasting impact of this action, and the content should not be
+      // delivered to the user.
+      // Set notice to notify the user that the backups directory could not be created.
+      add_action('admin_notices', 'unable_to_create_backup');
+      break;
+    case 'no_content_to_export':
+      add_action('admin_notices', 'no_content_to_export_notice');
+      break;
+    }
     break;
   case 'delete-backup-files':
     $generic_exporter->clean_backup_files($_POST['backup-files-to-delete']);
@@ -107,11 +126,19 @@ if($_GET['page'] == 'generic-export') {
   switch ($_GET['action']) {
   case 'activate-content-type': 
     $content_type = $_GET['content-type'];
-    $generic_exporter->activate_content_type($content_type); 
+    switch($generic_exporter->activate_content_type($content_type)) {
+    case 'content_type_not_found':
+      add_action('admin_notices', 'unable_to_activate');
+      break;
+    }
     break;
   case 'deactivate-content-type': 
     $content_type = $_GET['content-type'];
-    $generic_exporter->deactivate_content_type($content_type); 
+    switch($generic_exporter->deactivate_content_type($content_type)) {
+    case 'content_type_not_found':
+      add_action('admin_notices', 'unable_to_deactivate');
+      break;
+    }
     break;
   }
 }
@@ -125,7 +152,7 @@ if($_GET['page'] == 'generic-export') {
  *  BEGIN: Required WordPress Hooks
  */
 
-if ( is_admin() ){
+if( is_admin() ) {
   //Actions
   add_action( 'admin_menu', 'generic_export_menu' );
   add_action( 'admin_init', 'register_generic_export_settings' );
@@ -147,8 +174,6 @@ function generic_export_menu() {
 function register_generic_export_settings() {
   add_option( 'generic-export-active-content-types', array() );
 }
-
-/* Required WordPress Hooks -- END */
 
 // Defines the content for the admin page.
 function generic_export_options() {
@@ -197,6 +222,26 @@ function unable_to_create_backups_dir() {
   remove_action('admin_notices', 'unable_to_create_backups_dir');
 }
 
+function content_type_not_supported() {
+  echo "<div class=\"error notice\">The requested content type to export ('" . $_POST['content-type'] . "') is not currently supported. Please contact your site administrator to resolve this issue..</div>";
+  remove_action('admin_notices', 'content_type_not_supported');
+}
+
+function content_type_not_activated() {
+  echo "<div class=\"error notice\">The requested content type to export has not be activated. Please activate the appropriate content type and try again.</div>";
+  remove_action('admin_notices', 'content_type_not_activated');
+}
+
+function no_content_to_export_notice() {
+  echo "<div class=\"error notice\">No content found to export.</div>";
+  remove_action('admin_notices', 'no_content_to_export_notice');
+}
+
+function unable_to_create_backup() {
+  echo "<div class=\"error notice\">Unable to create a backup of the content exported, as requested. Please make sure that the web server has write access to the " . GenericExporter::backup_dir() . " directory.</div>";
+  remove_action('admin_notices', 'unable_to_create_backup');
+}
+
 function files_deleted() {
   // Identify the files that were successfully deleted.
   $filenames = $_SESSION['generic_export_files_deleted'];
@@ -213,6 +258,16 @@ function files_not_found() {
 
   echo "<div class=\"error notice\">The following files could not be found in the backup directory in order to delete them: <ul><li>" . join('</li><li>', $filenames) . "</li></ul></div>";
   remove_action('admin_notices', 'files_not_found');
+}
+
+function unable_to_activate() {
+  echo "<div class=\"error notice\">Unable to activate the requested content type ('" . $_GET['content-type'] . "'). Please try again and if this error persists, contact your site administrator.</div>";
+  remove_action('admin_notices', 'unable_to_activate');
+}
+
+function unable_to_deactivate() {
+  echo "<div class=\"error notice\">Unable to deactivate the requested content type ('" . $_GET['content-type'] . "'). Please try again and if this error persists, contact your site administrator.</div>";
+  remove_action('admin_notices', 'unable_to_deactivate');
 }
 
 /**

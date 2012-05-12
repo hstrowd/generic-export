@@ -88,7 +88,7 @@
        ?>
         <li>
           <input type="checkbox" name="backup-files-to-delete[]" value="<?php echo $backup_filename; ?>">
-          <a href="<?php echo plugins_url( 'export_backups/' . $backup_filename , __FILE__ ); ?>"><?php echo $backup_filename; ?></a>
+          <a href="<?php echo GENERIC_EXPORT_URL . '/export_backups/' . $backup_filename; ?>"><?php echo $backup_filename; ?></a>
         </li>
       <?php
         }

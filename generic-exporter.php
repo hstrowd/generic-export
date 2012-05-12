@@ -3,6 +3,15 @@
 // Include the plugin constants.
 require_once( plugin_dir_path( __FILE__ ) . 'constants.php' );
 
+// Defines the interface required for all supported content type exporters.
+interface iGenericExporter {
+  public function content_table_name();
+  public function get_unexported_entries();
+  public function get_all_entries();
+  public function export_entries();
+  public function mark_entries_exported();
+}
+
 class GenericExporter {
 
   /**
@@ -48,71 +57,25 @@ class GenericExporter {
 
 
   /**
-   *  BEGIN: Exporter Activation/Deactivation
-   */
-
-  // Handles user action for activating a content type.
-  public function activate_content_type($content_type) {
-    $exporter_class = self::$supported_content_types[$content_type][1];
-    $exporter = new $exporter_class();
-
-    /* Update the plugin option. */
-    $activated_types = get_option('generic-export-active-content-types');
-    if(!in_array($content_type, $activated_types)) {
-      echo "adding content type";
-      array_push($activated_types, $content_type);
-      update_option('generic-export-active-content-types', $activated_types);
-    }
-
-    /* Add an exported column to the appropriate table. */
-    global $wpdb;
-    $content_table_name = $exporter->content_table_name();
-    $wpdb->query("ALTER TABLE " . $content_table_name . 
-		 " ADD COLUMN exported BOOLEAN NOT NULL DEFAULT FALSE;");
-  }
-
-  // Handles user action for deactivating a content type.
-  public function deactivate_content_type($content_type) {
-    $exporter_class = self::$supported_content_types[$content_type][1];
-    $exporter = new $exporter_class();
-
-    /* Update the plugin options. */
-    $activated_types = get_option('generic-export-active-content-types');
-    if(in_array($content_type, $activated_types)) {
-      $keys = array_keys($activated_types, $content_type);
-      foreach($keys as $key) {
-	unset($activated_types[$key]);
-      }
-      update_option('generic-export-active-content-types', $activated_types);
-    }
-
-    $content_table_name = $exporter->content_table_name();
-
-    /* Drop exported column from the appropriate table */
-    global $wpdb;
-    $wpdb->query("ALTER TABLE " . $content_table_name . " DROP COLUMN exported;");
-  }
-
-  /**
-   *  END: Exporter Activation/Deactivation
-   */
-
-
-  /**
    *  BEGIN: Content Exporting
    */
 
   // Handles user action for exporting content.
-  // TODO: Add default arguments.
-  public function export_content($content_type, $content_to_export, $mark_as_exported, $backup_output) {
-    $activated_types = get_option('generic-export-active-content-types');
-    if(!in_array($content_type, $activated_types)) {
-      add_action('admin_notices', array( &$this, 'content_type_not_activated' ));      
-      return;
-    }
+  public function export_content($content_type, $content_to_export = 'non-exported', 
+				 $mark_as_exported = FALSE, $backup_output = TRUE) {
+    $exporter_config = self::$supported_content_types[$content_type];
+    if(!isset($exporter_config))
+      return array('content_type_not_found');
 
-    $exporter_class = self::$supported_content_types[$content_type][1];
+    $exporter_class = $exporter_config[1];
+    if(!isset($exporter_class))
+      return array('content_type_not_found');
+
     $exporter = new $exporter_class();
+
+    $activated_types = get_option('generic-export-active-content-types');
+    if(!in_array($content_type, $activated_types))
+      return array('inactive_content_type');
 
     switch($content_to_export) {
     case "non-exported":
@@ -136,28 +99,89 @@ class GenericExporter {
 	  fwrite($file, $output);
 	  fclose($file);
 	} else {
-	  // If we are unable to backup the content, the user should be notified, there
-          // should be no lasting impact of this action, and the content should not be
-          // delivered to the user.
-	  // Set notice to notify the user that the backups directory could not be created.
-	  add_action('admin_notices', array( &$this, 'unable_to_create_backup' ));
-	  return;
+	  return array('unable_to_create_backup');
 	}
       }
 
       // Only update entries, if told to do so.
-      if($mark_as_exported) {
+      if($mark_as_exported)
         $exporter->mark_entries_exported($entry_ids);
-      }
 
-      return array($filename, $output);
+      return array('success', $filename, $output);
     } else {
-      add_action('admin_notices', array( &$this, 'no_content_to_export_notice' ));
+      return array('no_content_to_export');
     }
   }
 
   /**
    *  END: Content Exporting
+   */
+
+
+  /**
+   *  BEGIN: Exporter Activation/Deactivation
+   */
+
+  // Handles user action for activating a content type. Returns true if successful, and false othewise.
+  public function activate_content_type($content_type) {
+    $exporter_config = self::$supported_content_types[$content_type];
+    if(!isset($exporter_config))
+      return 'content_type_not_found';
+
+    $exporter_class = $exporter_config[1];
+    if(!isset($exporter_class))
+      return 'content_type_not_found';
+
+    $exporter = new $exporter_class();
+
+    // Update the plugin option.
+    $activated_types = get_option('generic-export-active-content-types');
+    if(!in_array($content_type, $activated_types)) {
+      array_push($activated_types, $content_type);
+      update_option('generic-export-active-content-types', $activated_types);
+    }
+
+    // Add an exported column to the appropriate table.
+    global $wpdb;
+    $content_table_name = $exporter->content_table_name();
+    $wpdb->query("ALTER TABLE " . $content_table_name . 
+		 " ADD COLUMN exported BOOLEAN NOT NULL DEFAULT FALSE;");
+
+    return 'success';
+  }
+
+  // Handles user action for deactivating a content type.
+  public function deactivate_content_type($content_type) {
+    $exporter_config = self::$supported_content_types[$content_type];
+    if(!isset($exporter_config))
+      return 'content_type_not_found';
+
+    $exporter_class = $exporter_config[1];
+    if(!isset($exporter_class))
+      return 'content_type_not_found';
+
+    $exporter = new $exporter_class();
+
+    // Update the plugin options.
+    $activated_types = get_option('generic-export-active-content-types');
+    if(in_array($content_type, $activated_types)) {
+      $keys = array_keys($activated_types, $content_type);
+      foreach($keys as $key) {
+	unset($activated_types[$key]);
+      }
+      update_option('generic-export-active-content-types', $activated_types);
+    }
+
+    // Drop exported column from the appropriate table.
+    global $wpdb;
+    $content_table_name = $exporter->content_table_name();
+    $wpdb->query("ALTER TABLE " . $content_table_name . " DROP COLUMN exported;");
+
+    return 'success';
+  }
+
+  /**
+   *  END: Exporter Activation/Deactivation
    */
 
 
@@ -184,23 +208,6 @@ class GenericExporter {
   /**
    *  END: Delete Old Backupo Files
    */
-
-
-
-  public function no_content_to_export_notice() {
-    echo "<div class=\"error\">No content found to export.</div>";
-    remove_action('admin_notices', array( &$this, 'no_content_to_export_notice' ));
-  }
-
-  public function content_type_not_activated() {
-    echo "<div class=\"error\">The requested content type to export has not be activated. Please activate the appropriate content type and try again.</div>";
-    remove_action('admin_notices', array( &$this, 'content_type_not_activated' ));
-  }
-
-  public function unable_to_create_backup() {
-    echo "<div class=\"error\">Unable to create a backup of the content exported, as requested. Please make sure that the web server has write access to the " . self::backup_dir() . " directory.</div>";
-    remove_action('admin_notices', array( &$this, 'unable_to_create_backup' ));
-  }
 }
 
 ?>

@@ -1,10 +1,11 @@
 <?php
 
-class VisualFormBuilderExporter {
+// Provides support for exporting content created by the Visual Form Builder plugin.
+class VisualFormBuilderExporter implements iGenericExporter {
   public function __construct() {
     global $wpdb;
     
-    /* Setup global database table names */
+    // Setup global database table names
     $this->form_table_name = $wpdb->prefix . 'visual_form_builder_forms';
     $this->entries_table_name = $wpdb->prefix . 'visual_form_builder_entries';
   }
@@ -25,16 +26,6 @@ class VisualFormBuilderExporter {
     
     $entry_ids = $wpdb->get_col( "SELECT entries.entries_id FROM $this->entries_table_name AS entries" );
     return $entry_ids;
-  }
-
-  function mark_entries_exported( $entry_ids = NULL ) {
-    global $wpdb;
-    
-    /* Setup our query to accept selected entry IDs */	
-    if ( is_array( $entry_ids ) && !empty( $entry_ids ) )
-      $selection = " WHERE entries.entries_id IN (" . implode( ',', $entry_ids ) . ")";
-  
-    $entries = $wpdb->query( "UPDATE $this->entries_table_name AS entries SET exported = TRUE $selection" );
   }
 
   // Copied directly out of visual-form-builder/class-entries-list.php
@@ -219,5 +210,15 @@ class VisualFormBuilderExporter {
     }
 
     return $output;
+  }
+
+  function mark_entries_exported( $entry_ids = NULL ) {
+    global $wpdb;
+    
+    /* Setup our query to accept selected entry IDs */	
+    if ( is_array( $entry_ids ) && !empty( $entry_ids ) )
+      $selection = " WHERE entries.entries_id IN (" . implode( ',', $entry_ids ) . ")";
+  
+    $entries = $wpdb->query( "UPDATE $this->entries_table_name AS entries SET exported = TRUE $selection" );
   }
 }
