@@ -46,90 +46,94 @@ function load_generic_exporter() {
   $exporter = new GenericExporter();
 
   // Notify the user that the backups directory could not be created, if necessary.
-  if($exporter->unable_to_create_backups_dir)
+  if(isset($exporter->unable_to_create_backup) && $exporter->unable_to_create_backups_dir)
       add_action('admin_notices', 'unable_to_create_backups_dir');
 
   return $exporter;
 }
 
-if($_POST['page'] == 'generic-export') {
+if(isset($_POST['page']) && ($_POST['page'] == 'generic-export')) {
   $generic_exporter = load_generic_exporter();
 
-  // POST actions
-  switch($_POST['action']) {
-  case 'export-content': 
-    $content_type = $_POST['content-type'];
-    $content_to_export = $_POST['content-to-export'];
-    $mark_as_exported = $_POST['mark-as-exported'];
-    $backup_output = $_POST['backup-output'];
-    $export_result = $generic_exporter->export_content($content_type, $content_to_export, $mark_as_exported, $backup_output); 
-    switch($export_result[0]) {
-    case 'success':
-      $filename = $export_result[1];
-      $output = $export_result[2];
+  if(isset($_POST['action'])) {
+    // POST actions
+    switch($_POST['action']) {
+    case 'export-content': 
+      $content_type = $_POST['content-type'];
+      $content_to_export = $_POST['content-to-export'];
+      $mark_as_exported = $_POST['mark-as-exported'];
+      $backup_output = $_POST['backup-output'];
+      $export_result = $generic_exporter->export_content($content_type, $content_to_export, $mark_as_exported, $backup_output); 
+      switch($export_result[0]) {
+      case 'success':
+	$filename = $export_result[1];
+	$output = $export_result[2];
 
-      // Change our header so the browser spits out a CSV file to download.
-      header('Content-type: text/csv');
-      header('Content-Disposition: attachment; filename="' . $filename . '"');
-      ob_clean();
+	// Change our header so the browser spits out a CSV file to download.
+	header('Content-type: text/csv');
+	header('Content-Disposition: attachment; filename="' . $filename . '"');
+	ob_clean();
 
-      echo $output;
+	echo $output;
 
-      die();
+	die();
+	break;
+      default:
+	// If the export did not succeed, notify the user of the result as a notice.
+	add_action('admin_notices', $export_result[0]);      
+	break;
+      }
       break;
-    default:
-      // If the export did not succeed, notify the user of the result as a notice.
-      add_action('admin_notices', $export_result[0]);      
+    case 'delete-backup-files':
+      $generic_exporter->clean_backup_files($_POST['backup-files-to-delete']);
+
+      // TODO: I don't like pushing the notice parameters through the session, but I 
+      // don't know of any other way to do it.
+      if(count($generic_exporter->files_deleted) > 0) {
+	$_SESSION['generic_export_files_deleted'] = $generic_exporter->files_deleted;
+	add_action('admin_notices', 'generic_export_files_deleted');
+      }
+
+      if(count($generic_exporter->files_not_found) > 0) {
+	$_SESSION['generic_export_files_not_found'] = $generic_exporter->files_not_found;
+	add_action('admin_notices', 'generic_export_files_not_found');
+      }
+
       break;
     }
-    break;
-  case 'delete-backup-files':
-    $generic_exporter->clean_backup_files($_POST['backup-files-to-delete']);
-
-    // TODO: I don't like pushing the notice parameters through the session, but I 
-    // don't know of any other way to do it.
-    if(count($generic_exporter->files_deleted) > 0) {
-      $_SESSION['generic_export_files_deleted'] = $generic_exporter->files_deleted;
-      add_action('admin_notices', 'generic_export_files_deleted');
-    }
-
-    if(count($generic_exporter->files_not_found) > 0) {
-      $_SESSION['generic_export_files_not_found'] = $generic_exporter->files_not_found;
-      add_action('admin_notices', 'generic_export_files_not_found');
-    }
-
-    break;
   }
 }
 
-if($_GET['page'] == 'generic-export') {
+if(isset($_GET['page']) && $_GET['page'] == 'generic-export') {
   $generic_exporter = load_generic_exporter();
 
   // GET actions
-  switch ($_GET['action']) {
-  case 'activate-content-type': 
-    $content_type = $_GET['content-type'];
+  if(isset($_GET['action'])) {
+    switch ($_GET['action']) {
+    case 'activate-content-type': 
+      $content_type = $_GET['content-type'];
 
-    $activation_result = $generic_exporter->activate_content_type($content_type);
+      $activation_result = $generic_exporter->activate_content_type($content_type);
 
-    switch($activation_result[0]) {
-    case 'activation_failed':
-      $_SESSION['activation_errors'] = $activation_result[1];
-      add_action('admin_notices', 'activation_failed');
-    }
-    break;
-  case 'deactivate-content-type': 
-    $content_type = $_GET['content-type'];
-
-    $deactivation_result = $generic_exporter->deactivate_content_type($content_type);
-
-    switch($deactivation_result[0]) {
-    case 'deactivation_failed':
-      $_SESSION['deactivation_errors'] = $deactivation_result[1];
-      add_action('admin_notices', 'deactivation_failed');
+      switch($activation_result[0]) {
+      case 'activation_failed':
+	$_SESSION['activation_errors'] = $activation_result[1];
+	add_action('admin_notices', 'activation_failed');
+      }
       break;
-    }
+    case 'deactivate-content-type': 
+      $content_type = $_GET['content-type'];
+
+      $deactivation_result = $generic_exporter->deactivate_content_type($content_type);
+
+      switch($deactivation_result[0]) {
+      case 'deactivation_failed':
+	$_SESSION['deactivation_errors'] = $deactivation_result[1];
+	add_action('admin_notices', 'deactivation_failed');
+	break;
+      }
     break;
+  }
   }
 }
 
