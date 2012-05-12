@@ -31,14 +31,14 @@ class VisualFormBuilderExporter implements iGenericExporter {
     return array('success');
   }
 
-  function get_unexported_entries() {
+  public function get_unexported_entries() {
     global $wpdb;
     
     $entry_ids = $wpdb->get_col( "SELECT entries.entries_id FROM $this->entries_table_name AS entries WHERE entries.exported = FALSE" );
     return $entry_ids;
   }
 
-  function get_all_entries() {
+  public function get_all_entries() {
     global $wpdb;
     
     $entry_ids = $wpdb->get_col( "SELECT entries.entries_id FROM $this->entries_table_name AS entries" );
@@ -46,7 +46,7 @@ class VisualFormBuilderExporter implements iGenericExporter {
   }
 
   // Copied directly out of visual-form-builder/class-entries-list.php
-  function export_entries( $entry_ids = NULL ) {    
+  public function export_entries( $entry_ids = NULL ) {    
     global $wpdb;
     
     /* Setup our query to accept selected entry IDs */	
@@ -229,7 +229,7 @@ class VisualFormBuilderExporter implements iGenericExporter {
     return $output;
   }
 
-  function mark_entries_exported( $entry_ids = NULL ) {
+  public function mark_entries_exported( $entry_ids = NULL ) {
     global $wpdb;
     
     /* Setup our query to accept selected entry IDs */	

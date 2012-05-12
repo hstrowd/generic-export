@@ -20,8 +20,8 @@ interface iGenericExporter {
   public function get_all_entries();
 
   // Return: String of CSV entries.
-  public function export_entries($entry_ids);
-  public function mark_entries_exported($entry_ids);
+  public function export_entries($entry_ids = NULL);
+  public function mark_entries_exported($entry_ids = NULL);
 }
 
 class GenericExporter {
