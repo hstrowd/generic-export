@@ -167,7 +167,7 @@ if( is_admin() ) {
 }
 
 function generic_export_menu() {
-  add_options_page( __('Generic Export Options', 'generic export'), 
+  add_management_page( __('Generic Export Options', 'generic export'), 
 		    __('Generic Export', 'generic export'),
 		    'manage_options', 
 		    'generic-export',
@@ -182,7 +182,7 @@ function register_generic_export_settings() {
 
 // Defines the content for the admin page.
 function generic_export_options() {
-  if ( !current_user_can( 'manage_options' ) )  {
+  if ( !current_user_can( 'export' ) )  {
     wp_die( __( 'You do not have sufficient permissions to access this page.' ) );
   }
 

@@ -1,5 +1,5 @@
 <div class="generic_export_admin">
-<div id="icon-options-general" class="icon32"><br></div>
+<div id="icon-tools" class="icon32"><br></div>
 <h2>Generic Export - Data Export</h2>
 
 <?php
