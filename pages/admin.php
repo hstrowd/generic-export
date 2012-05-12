@@ -88,6 +88,7 @@
 <div class="backup_files">
   <h3>Export Backups</h3>
   <p>The following backup files are available for downloading:</p>
+  <span class="warning notice">To clean up these files, check the checkbox next to the associated files and click the Delete button below.</span>
   <form id="generic-export-delete-backup-files" method="post">
     <input name="page" type="hidden" value="generic-export">
     <input name="action" type="hidden" value="delete-backup-files">

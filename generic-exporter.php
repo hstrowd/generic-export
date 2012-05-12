@@ -81,13 +81,13 @@ class GenericExporter {
 
     $exporter_class = $exporter_config[1];
     if(!isset($exporter_class))
-      return array('content_type_not_found');
+      return array('content_type_not_supported');
 
     $exporter = new $exporter_class();
 
     $activated_types = get_option('generic-export-active-content-types');
     if(!in_array($content_type, $activated_types))
-      return array('inactive_content_type');
+      return array('content_type_not_activated');
 
     switch($content_to_export) {
     case "non-exported":
@@ -111,6 +111,9 @@ class GenericExporter {
 	  fwrite($file, $output);
 	  fclose($file);
 	} else {
+	  // If we are unable to backup the content, the user should be notified, there
+	  // should be no lasting impact of this action, and the content should not be
+	  // delivered to the user.
 	  return array('unable_to_create_backup');
 	}
       }

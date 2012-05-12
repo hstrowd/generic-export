@@ -37,7 +37,6 @@ require_once( plugin_dir_path( __FILE__ ) . 'constants.php' );
 // Require internal files.
 require_once( GENERIC_EXPORT_DIR . '/generic-exporter.php' );
 
-
 /**
  *  BEGIN: Handle user actions.
  */
@@ -78,21 +77,9 @@ if($_POST['page'] == 'generic-export') {
 
       die();
       break;
-    case 'content_type_not_found':
-      add_action('admin_notices', 'content_type_not_supported');      
-      break;
-    case 'inactive_content_type':
-      add_action('admin_notices', 'content_type_not_activated');
-      break;
-    case 'unable_to_create_backup':
-      // If we are unable to backup the content, the user should be notified, there
-      // should be no lasting impact of this action, and the content should not be
-      // delivered to the user.
-      // Set notice to notify the user that the backups directory could not be created.
-      add_action('admin_notices', 'unable_to_create_backup');
-      break;
-    case 'no_content_to_export':
-      add_action('admin_notices', 'no_content_to_export_notice');
+    default:
+      // If the export did not succeed, notify the user of the result as a notice.
+      add_action('admin_notices', $export_result[0]);      
       break;
     }
     break;
@@ -103,12 +90,12 @@ if($_POST['page'] == 'generic-export') {
     // don't know of any other way to do it.
     if(count($generic_exporter->files_deleted) > 0) {
       $_SESSION['generic_export_files_deleted'] = $generic_exporter->files_deleted;
-      add_action('admin_notices', 'files_deleted');
+      add_action('admin_notices', 'generic_export_files_deleted');
     }
 
     if(count($generic_exporter->files_not_found) > 0) {
       $_SESSION['generic_export_files_not_found'] = $generic_exporter->files_not_found;
-      add_action('admin_notices', 'files_not_found');
+      add_action('admin_notices', 'generic_export_files_not_found');
     }
 
     break;
@@ -235,32 +222,32 @@ function content_type_not_activated() {
   remove_action('admin_notices', 'content_type_not_activated');
 }
 
-function no_content_to_export_notice() {
+function no_content_to_export() {
   echo "<div class=\"error notice\">No content found to export.</div>";
-  remove_action('admin_notices', 'no_content_to_export_notice');
+  remove_action('admin_notices', 'no_content_to_export');
 }
 
 function unable_to_create_backup() {
-  echo "<div class=\"error notice\">Unable to create a backup of the content exported, as requested. Please make sure that the web server has write access to the " . GenericExporter::backup_dir() . " directory.</div>";
+  echo "<div class=\"error notice\">Unable to create a backup of the content exported. Please make sure that the web server has write access to the " . GenericExporter::backup_dir() . " directory.</div>";
   remove_action('admin_notices', 'unable_to_create_backup');
 }
 
-function files_deleted() {
+function generic_export_files_deleted() {
   // Identify the files that were successfully deleted.
   $filenames = $_SESSION['generic_export_files_deleted'];
   unset($_SESSION['generic_export_files_deleted']);
 
   echo "<div class=\"success notice\">The following files were successfully deleted from the backup directory: <ul><li>" . join('</li><li>', $filenames) . "</li></ul></div>";
-  remove_action('admin_notices', 'files_deleted');
+  remove_action('admin_notices', 'generic_export_files_deleted');
 }
 
-function files_not_found() {
+function generic_export_files_not_found() {
   // Identify the files that were not able to be found.
   $filenames = $_SESSION['generic_export_files_not_found'];
   unset($_SESSION['generic_export_files_not_found']);
 
   echo "<div class=\"error notice\">The following files could not be found in the backup directory in order to delete them: <ul><li>" . join('</li><li>', $filenames) . "</li></ul></div>";
-  remove_action('admin_notices', 'files_not_found');
+  remove_action('admin_notices', 'generic_export_files_not_found');
 }
 
 function activation_failed() {
