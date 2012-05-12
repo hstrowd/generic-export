@@ -5,11 +5,23 @@ require_once( plugin_dir_path( __FILE__ ) . 'constants.php' );
 
 // Defines the interface required for all supported content type exporters.
 interface iGenericExporter {
-  public function content_table_name();
+  // Return: Array with the first element being the result ('success' or 'activiation_failed'). 
+  //         If it failed, the second element should be an array of error messages. 
+  public function activate();
+
+  // Return: Array with the first element being the result ('success' or 'deactiviation_failed'). 
+  //         If it failed, the second element should be an array of error messages. 
+  public function deactivate();
+
+  // Return: Array of entry IDs.
   public function get_unexported_entries();
+
+  // Return: Array of entry IDs.
   public function get_all_entries();
-  public function export_entries();
-  public function mark_entries_exported();
+
+  // Return: String of CSV entries.
+  public function export_entries($entry_ids);
+  public function mark_entries_exported($entry_ids);
 }
 
 class GenericExporter {
@@ -126,58 +138,59 @@ class GenericExporter {
   public function activate_content_type($content_type) {
     $exporter_config = self::$supported_content_types[$content_type];
     if(!isset($exporter_config))
-      return 'content_type_not_found';
+      return array('activation_failed', array('The specified content type (' . $content_type . ') was not found.'));
 
     $exporter_class = $exporter_config[1];
     if(!isset($exporter_class))
-      return 'content_type_not_found';
+      return array('activation_failed', array('The specified content type (' . $content_type . ') was not found.'));
 
     $exporter = new $exporter_class();
 
-    // Update the plugin option.
-    $activated_types = get_option('generic-export-active-content-types');
-    if(!in_array($content_type, $activated_types)) {
-      array_push($activated_types, $content_type);
-      update_option('generic-export-active-content-types', $activated_types);
+    $activation_result = $exporter->activate();
+
+    switch($activation_result[0]) {
+    case 'success':
+      // Update the plugin option.
+      $activated_types = get_option('generic-export-active-content-types');
+      if(!in_array($content_type, $activated_types)) {
+	array_push($activated_types, $content_type);
+	update_option('generic-export-active-content-types', $activated_types);
+      }
+      break;
     }
 
-    // Add an exported column to the appropriate table.
-    global $wpdb;
-    $content_table_name = $exporter->content_table_name();
-    $wpdb->query("ALTER TABLE " . $content_table_name . 
-		 " ADD COLUMN exported BOOLEAN NOT NULL DEFAULT FALSE;");
-
-    return 'success';
+    return $activation_result;
   }
 
   // Handles user action for deactivating a content type.
   public function deactivate_content_type($content_type) {
     $exporter_config = self::$supported_content_types[$content_type];
     if(!isset($exporter_config))
-      return 'content_type_not_found';
+      return array('deactivation_failed', array('The specified content type (' . $content_type . ') was not found.'));
 
     $exporter_class = $exporter_config[1];
     if(!isset($exporter_class))
-      return 'content_type_not_found';
+      return array('deactivation_failed', array('The specified content type (' . $content_type . ') was not found.'));
 
     $exporter = new $exporter_class();
 
-    // Update the plugin options.
-    $activated_types = get_option('generic-export-active-content-types');
-    if(in_array($content_type, $activated_types)) {
-      $keys = array_keys($activated_types, $content_type);
-      foreach($keys as $key) {
-	unset($activated_types[$key]);
+    $deactivation_result = $exporter->deactivate();
+
+    switch($deactivation_result[0]) {
+    case 'success':
+      // Update the plugin options.
+      $activated_types = get_option('generic-export-active-content-types');
+      if(in_array($content_type, $activated_types)) {
+	$keys = array_keys($activated_types, $content_type);
+	foreach($keys as $key) {
+	  unset($activated_types[$key]);
+	}
+	update_option('generic-export-active-content-types', $activated_types);
       }
-      update_option('generic-export-active-content-types', $activated_types);
+      break;
     }
 
-    // Drop exported column from the appropriate table.
-    global $wpdb;
-    $content_table_name = $exporter->content_table_name();
-    $wpdb->query("ALTER TABLE " . $content_table_name . " DROP COLUMN exported;");
-
-    return 'success';
+    return $deactivation_result;
   }
 
   /**

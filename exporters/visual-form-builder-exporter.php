@@ -10,8 +10,25 @@ class VisualFormBuilderExporter implements iGenericExporter {
     $this->entries_table_name = $wpdb->prefix . 'visual_form_builder_entries';
   }
 
-  function content_table_name() {
-    return $this->entries_table_name;
+  public function activate(){
+    require_once( ABSPATH . 'wp-admin/includes/plugin.php' );
+    if(!is_plugin_active('visual-form-builder/visual-form-builder.php'))
+      return array('activation_failed', array('The Visual Form Builder plugin must be installed and active to export content of this type.'));
+
+    // Add an exported column to the appropriate table.
+    global $wpdb;
+    $wpdb->query("ALTER TABLE " . $content_table_name . 
+		 " ADD COLUMN exported BOOLEAN NOT NULL DEFAULT FALSE;");
+
+    return array('success');
+  }
+
+  public function deactivate(){
+    // Drop exported column from the appropriate table.
+    global $wpdb;
+    $wpdb->query("ALTER TABLE " . $this->entries_table_name . " DROP COLUMN exported;");
+
+    return array('success');
   }
 
   function get_unexported_entries() {

@@ -26,8 +26,6 @@ License: GPL2
 */
 
 /* TODO List:
-    - Add documentation for how to add new exporters
-    - Add support for verifying that a plugin is installed before it is deemed a "supported" content type.
     - Move admin page to the Tools section.
     - Add written explanation of each config value.
     - Separate exporting and formatting.
@@ -126,17 +124,24 @@ if($_GET['page'] == 'generic-export') {
   switch ($_GET['action']) {
   case 'activate-content-type': 
     $content_type = $_GET['content-type'];
-    switch($generic_exporter->activate_content_type($content_type)) {
-    case 'content_type_not_found':
-      add_action('admin_notices', 'unable_to_activate');
-      break;
+
+    $activation_result = $generic_exporter->activate_content_type($content_type);
+
+    switch($activation_result[0]) {
+    case 'activation_failed':
+      $_SESSION['activation_errors'] = $activation_result[1];
+      add_action('admin_notices', 'activation_failed');
     }
     break;
   case 'deactivate-content-type': 
     $content_type = $_GET['content-type'];
-    switch($generic_exporter->deactivate_content_type($content_type)) {
-    case 'content_type_not_found':
-      add_action('admin_notices', 'unable_to_deactivate');
+
+    $deactivation_result = $generic_exporter->deactivate_content_type($content_type);
+
+    switch($deactivation_result[0]) {
+    case 'deactivation_failed':
+      $_SESSION['deactivation_errors'] = $deactivation_result[1];
+      add_action('admin_notices', 'deactivation_failed');
       break;
     }
     break;
@@ -260,14 +265,20 @@ function files_not_found() {
   remove_action('admin_notices', 'files_not_found');
 }
 
-function unable_to_activate() {
-  echo "<div class=\"error notice\">Unable to activate the requested content type ('" . $_GET['content-type'] . "'). Please try again and if this error persists, contact your site administrator.</div>";
-  remove_action('admin_notices', 'unable_to_activate');
+function activation_failed() {
+  $errors = $_SESSION['activation_errors'];
+  echo "<div class=\"error notice\">Unable to activate the requested content type due to the following errors. Please try again or contact your site administrator.
+  <ul><li>" . join('</li><li>', $errors) . "</li></ul>
+</div>";
+  remove_action('admin_notices', 'activation_failed');
 }
 
-function unable_to_deactivate() {
-  echo "<div class=\"error notice\">Unable to deactivate the requested content type ('" . $_GET['content-type'] . "'). Please try again and if this error persists, contact your site administrator.</div>";
-  remove_action('admin_notices', 'unable_to_deactivate');
+function deactivation_failed() {
+  $errors = $_SESSION['deactivation_errors'];
+  echo "<div class=\"error notice\">Unable to deactivate the requested content type due to the following errors. Please try again or contact your site administrator.
+  <ul><li>" . join('</li><li>', $errors) . "</li></ul>
+</div>";
+  remove_action('admin_notices', 'deactivation_failed');
 }
 
 /**
