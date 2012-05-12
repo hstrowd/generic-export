@@ -27,18 +27,103 @@ License: GPL2
 
 /* TODO List:
     - Add documentation for how to add new exporters
-    - Add support for multiple export formats
-    - Add support for cleaning out the backed up exports. 
-    - Add global configuration for how long the backups should be kept for and the directory on the server to use.
     - Add support for verifying that a plugin is installed before it is deemed a "supported" content type.
-    - Give the plugin a top level menu item and icon.
+    - Move admin page to the Tools section.
     - Add written explanation of each config value.
-    - Make backup a requirement of marking as exported.
+    - Add support for multiple export formats
+    - Add global configuration for how long the backups should be kept for and the directory on the server to use.
     - Add different levels of permissions for activating and exporting.
-    - Allow per form export.
 */
 
-require_once( trailingslashit( plugin_dir_path( __FILE__ ) ) . '/generic-exporter.php' );
+// Include the plugin constants.
+require_once( plugin_dir_path( __FILE__ ) . 'constants.php' );
+
+// Require internal files.
+require_once( GENERIC_EXPORT_DIR . '/generic-exporter.php' );
+
+
+/**
+ *  BEGIN: Handle user actions.
+ */
+
+// Loads a GenericExporter and verifies that in was initialized properly.
+function load_generic_exporter() {
+  $exporter = new GenericExporter();
+
+  // Notify the user that the backups directory could not be created, if necessary.
+  if($exporter->unable_to_create_backups_dir)
+      add_action('admin_notices', 'unable_to_create_backups_dir');
+
+  return $exporter;
+}
+
+if($_POST['page'] == 'generic-export') {
+  $generic_exporter = load_generic_exporter();
+
+  // POST actions
+  switch($_POST['action']) {
+  case 'export-content': 
+    $content_type = $_POST['content-type'];
+    $content_to_export = $_POST['content-to-export'];
+    $mark_as_exported = $_POST['mark-as-exported'];
+    $backup_output = $_POST['backup-output'];
+    $export_result = $generic_exporter->export_content($content_type, $content_to_export, $mark_as_exported, $backup_output); 
+
+    $filename = $export_result[0];
+    $output = $export_result[1];
+
+    /* Change our header so the browser spits out a CSV file to download */
+    header('Content-type: text/csv');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    ob_clean();
+
+    echo $output;
+
+    die();
+    break;
+  case 'delete-backup-files':
+    $generic_exporter->clean_backup_files($_POST['backup-files-to-delete']);
+
+    // TODO: I don't like pushing the notice parameters through the session, but I 
+    // don't know of any other way to do it.
+    if(count($generic_exporter->files_deleted) > 0) {
+      $_SESSION['generic_export_files_deleted'] = $generic_exporter->files_deleted;
+      add_action('admin_notices', 'files_deleted');
+    }
+
+    if(count($generic_exporter->files_not_found) > 0) {
+      $_SESSION['generic_export_files_not_found'] = $generic_exporter->files_not_found;
+      add_action('admin_notices', 'files_not_found');
+    }
+
+    break;
+  }
+}
+
+if($_GET['page'] == 'generic-export') {
+  $generic_exporter = load_generic_exporter();
+
+  // GET actions
+  switch ($_GET['action']) {
+  case 'activate-content-type': 
+    $content_type = $_GET['content-type'];
+    $generic_exporter->activate_content_type($content_type); 
+    break;
+  case 'deactivate-content-type': 
+    $content_type = $_GET['content-type'];
+    $generic_exporter->deactivate_content_type($content_type); 
+    break;
+  }
+}
+
+/**
+ *  END: Handle user actions.
+ */
+
+
+/**
+ *  BEGIN: Required WordPress Hooks
+ */
 
 if ( is_admin() ){
   //Actions
@@ -48,7 +133,6 @@ if ( is_admin() ){
 } else {
   // non-admin enqueues, actions, and filters
 }
-
 
 function generic_export_menu() {
   add_options_page( __('Generic Export Options', 'generic export'), 
@@ -85,225 +169,54 @@ function generic_export_options() {
     }
   }
 
-  // TODO: This is really ugly! Find another way of producing this content.
-  ?>
-
-  <div class="generic_export_admin">
-  <div id="icon-options-general" class="icon32"><br></div>
-  <h2>Generic Export - Data Export</h2>
-
-  <?php
-    if(count($activated_types) > 0) { 
-   ?>
-  <div class="export">
-    <h3>Data Export</h3>
-    <p>Select the appropriate export options:</p>
-
-    <form id="export-content" action method="post">
-      <input name="action" type="hidden" value="export-content">
-      <input type="hidden" name="_wp_http_referer" 
-        value="<?php echo admin_url('options-general.php?page=generic-export'); ?>">
-
-      <div id="content_type" class="export_option">
-        <div class="label">Type of Content: </div>
-        <div class="content_type_selection">
-          <select size="1" name="content-type">
-            <?php
-              foreach($activated_types as $content_type_key) {
-             ?>
-              <option value="<?php echo $content_type_key; ?>">
-                <?php echo GenericExporter::$supported_content_types[$content_type_key][0]; ?>
-              </option>             
-            <?php
-              }
-             ?>
-          </select>
-        </div>
-        <div class="clear"></div>
-      </div>
-
-      <div id="content_to_export" class="export_option">
-        <div class="label">Content to Export: </div>
-        <div class="content_to_export_selection">
-          <label for="export-non-exported">
-            <input type="radio" name="content-to-export" value="non-exported" checked="true">
-            <span>Records Not Previously Exported</span>
-          </label>
-          <label for="export-all">
-            <input type="radio" name="content-to-export" value="all">
-            <span>All Records</span>
-          </label>
-        </div>
-      </div>
-
-      <div id="mark_as_exported" class="export_option">
-        <div class="label">Mark Content as Exported: </div>
-        <div class="mark_as_exported_selection">
-          <input type="checkbox" name="mark-as-exported" value="1" checked>
-        </div>
-      </div>
-
-      <div id="backup_output" class="export_option">
-        <div class="label">Store Backup of Result on the Server: </div>
-        <div class="backup_output_selection">
-          <input type="checkbox" name="backup-output" value="1" checked>
-        </div>
-      </div>
-
-      <div>
-        <input type="submit" value="Export" class="button" />
-      </div>
-    </form>
-
-  </div>
-  <?php
-    }
-   ?>
-
-  <?php
-    if(count($export_backups) > 0) { 
-   ?>
-  <div class="export">
-    <h3>Export Backups</h3>
-    <p>The following backup files are available for downloading:</p>
-    <ul>
-    <?php
-	foreach($export_backups as $backup_filename) {
-     ?>
-      <li>
-        <a href="<?php echo plugins_url( 'export_backups/' . $backup_filename , __FILE__ ); ?>"><?php echo $backup_filename; ?></a>
-      </li>
-    <?php
-	}
-     ?>
-    </ul>
-  </div>
-  <?php
-    }
-   ?>
-
-  <div class="configuration">
-    <h3>Plugin Configuration</h3>
-    <p>Use the options below to configure the content types that you would like to be exportable:</p>
-    <div class="warning">WARNING: Deactivating a content type will delete the data stored in the database that tracks the content that has already been exported. This will mean that if you reactivate the plugin in the future, your first export will include all records and not just those that were not previously exported. Proceed with caution!</div>
-    <?php
-      foreach(GenericExporter::$supported_content_types as $content_type_key => $content_type_array) {
-     ?>
-    <div class="content_type">
-      <div class="label"><?php echo $content_type_array[0]; ?></div>
-      <?php 
-        if(!in_array($content_type_key, $activated_types)) { 
-       ?>
-      <div class="activation_button">
-        <a href="?page=generic-export&action=activate-content-type&content-type=<?php echo $content_type_key; ?>" class="button">Activate</a>
-      </div>
-      <?php
-        } else {
-       ?>
-      <div class="deactivation_button">
-        <a href="?page=generic-export&action=deactivate-content-type&content-type=<?php echo $content_type_key; ?>" class="button">Deactivate</a>
-      </div>
-      <?php
-    	   }
-       ?>
-       <div class="clear"></div>
-    </div>
-    <?php
-      }
-     ?>
-  </div>
-
-  <?php
+  // Defines the structure of the admin page.
+  require_once(GENERIC_EXPORT_DIR . '/pages/admin.php');
 }
 
-/* Basic CSS styling for the admin page. */
+// Basic CSS styling for the admin page.
 function generic_export_styles() {
-  // TODO: This is ugly! find a better way to isolate this and pull it into the admin page.
-  ?>
-  <style type="text/css">
-    .error, .warning {
-      max-width: 600px;
-      margin: 10px 0 20px 0;
-      padding: 6px 10px;
-      border: 1px solid #D8D8D8;
-      -webkit-border-radius: 4px
-      -moz-border-radius: 4px;
-      border-radius: 4px;
-      font-size: 11px;
-    }
-    .error {
-      border-color: #EED3D7;
-      background-color: #F2DEDE;
-    }
-    .warning {
-      background-color: #FFFFCC;
-    }
-
-    .generic_export_admin h3 {
-      margin-top: 35px;
-    }
-    .generic_export_admin .label {
-      margin-right: 10px;
-      float: left;
-      vertical-align: middle;
-      font-weight: bold;
-    }
-
-    .export_option {
-      margin: 10px;
-    }
-    .export .button {
-      margin: 5px 0 0 20px;
-    }
-
-    .activation_button, .deactivation_button {
-      float: left;
-    }
-
-    .clear {
-      clear:both;
-    }
-  </style>
-  <?php
+  wp_enqueue_style( 'generic_export_admin_css', GENERIC_EXPORT_URL .'/css/generic_export_admin.css');
 }
 
-// Handlers for user actions
-if($_GET['action']); {
-  $generic_exporter = new GenericExporter();
-  $content_type = $_GET['content-type'];
-  switch ($_GET['action']) {
-  case 'activate-content-type': 
-    $generic_exporter->activate_content_type($content_type); 
-    break;
-  case 'deactivate-content-type': 
-    $generic_exporter->deactivate_content_type($content_type); 
-    break;
-  }
+function generic_export_scripts() {
+  wp_enqueue_script( 'generic_export_admin_js', GENERIC_EXPORT_URL .'/js/generic_export_admin.js', 
+		     array('jquery') );
 }
 
-if($_POST['action']); {
-  $generic_exporter = new GenericExporter();
-  switch($_POST['action']) {
-  case 'export-content': 
-    $content_type = $_POST['content-type'];
-    $content_to_export = $_POST['content-to-export'];
-    $mark_as_exported = $_POST['mark-as-exported'];
-    $backup_output = $_POST['backup-output'];
-    $export_result = $generic_exporter->export_content($content_type, $content_to_export, $mark_as_exported, $backup_output); 
+/**
+ *  END: Required WordPress Hooks
+ */
 
-    $filename = $export_result[0];
-    $output = $export_result[1];
 
-    /* Change our header so the browser spits out a CSV file to download */
-    header('Content-type: text/csv');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    ob_clean();
+/**
+ *  BEGIN: Admin Notices
+ */
 
-    echo $output;
-
-    die();
-    break;
-  }
+function unable_to_create_backups_dir() {
+  echo "<div class=\"warning notice\">Unable to create the export backup directory at '" . GenericExporter::backup_dir() . "'. Please make sure that the web server has write access to this directory.</div>";
+  remove_action('admin_notices', 'unable_to_create_backups_dir');
 }
+
+function files_deleted() {
+  // Identify the files that were successfully deleted.
+  $filenames = $_SESSION['generic_export_files_deleted'];
+  unset($_SESSION['generic_export_files_deleted']);
+
+  echo "<div class=\"success notice\">The following files were successfully deleted from the backup directory: <ul><li>" . join('</li><li>', $filenames) . "</li></ul></div>";
+  remove_action('admin_notices', 'files_deleted');
+}
+
+function files_not_found() {
+  // Identify the files that were not able to be found.
+  $filenames = $_SESSION['generic_export_files_not_found'];
+  unset($_SESSION['generic_export_files_not_found']);
+
+  echo "<div class=\"error notice\">The following files could not be found in the backup directory in order to delete them: <ul><li>" . join('</li><li>', $filenames) . "</li></ul></div>";
+  remove_action('admin_notices', 'files_not_found');
+}
+
+/**
+ *  END: Admin Notices
+ */
 
 ?>

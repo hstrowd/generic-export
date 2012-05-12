@@ -1,41 +1,55 @@
 <?php
 
+// Include the plugin constants.
+require_once( plugin_dir_path( __FILE__ ) . 'constants.php' );
+
 class GenericExporter {
-  /*  Dictionary of supported content types for export.
-      The keys in this dictionary should be the internal IDs used for these content types.
-      The values in this dictionary should be an arry in which the first element is the user
-      facing name for each content type and the second is the class name used to export this
-      content.
-  
-      For each key, a file should exist in the exporters directory that is the key appended 
-      with '-exporter.php'.
+
+  /**
+   *  BEGIN: Static Content
    */
-  // TODO: Dynamically load this based on the content in the exporters directory.
+
+  /**
+   *  Dictionary of supported content types for export.
+   *  The keys in this dictionary should be the internal IDs used for these content types.
+   *  The values in this dictionary should be an arry in which the first element is the user
+   *  facing name for each content type and the second is the class name used to export this
+   *  content.
+   *
+   *  For each key, a file should exist in the exporters directory that is the key appended 
+   *  with '-exporter.php'.
+   */
   public static $supported_content_types = 
     array( 'visual-form-builder' => array('Visual Form Builder', 'VisualFormBuilderExporter') );
 
   // The directory into which backups of executed exports will be saved. I wanted to make this
   // a constant but since it is a calculated value, I couldn't get it to work.
   public static function backup_dir() {
-    return plugin_dir_path( __FILE__ ) . 'export_backups';
+    return GENERIC_EXPORT_DIR . '/export_backups';
   }
 
-  /* Required WordPress Hooks -- BEGIN */
+  /**
+   *  END: Static Content
+   */
+
 
   public function __construct() {
 
     // Loads supported exporters.
     foreach(self::$supported_content_types as $content_type_key => $content_type_array) {
-      require_once( trailingslashit( plugin_dir_path( __FILE__ ) ) . '/exporters/' . 
-		    $content_type_key . '-exporter.php' );
+      require_once( GENERIC_EXPORT_DIR . '/exporters/' . $content_type_key . '-exporter.php' );
     }
 
     // Ensure the export backup directory exists.
     if(!is_dir(self::backup_dir()) && !mkdir(self::backup_dir())) {
-      // Set notice to notify the user that the backups directory could not be created.
-      add_action('admin_notices', array( &$this, 'unable_to_create_backups_dir' ));
+      $this->unable_to_create_backups_dir = true;
     }
   }
+
+
+  /**
+   *  BEGIN: Exporter Activation/Deactivation
+   */
 
   // Handles user action for activating a content type.
   public function activate_content_type($content_type) {
@@ -78,6 +92,15 @@ class GenericExporter {
     global $wpdb;
     $wpdb->query("ALTER TABLE " . $content_table_name . " DROP COLUMN exported;");
   }
+
+  /**
+   *  END: Exporter Activation/Deactivation
+   */
+
+
+  /**
+   *  BEGIN: Content Exporting
+   */
 
   // Handles user action for exporting content.
   // TODO: Add default arguments.
@@ -133,14 +156,40 @@ class GenericExporter {
     }
   }
 
+  /**
+   *  END: Content Exporting
+   */
+
+
+  /**
+   *  BEGIN: Delete Old Backup Files
+   */
+
+  public function clean_backup_files($filenames) {
+    // Track the files that were deleted and those that could not be found.
+    $this->files_deleted = array();
+    $this->files_not_found = array();
+
+    // Check if each file exists. If so, delete it. If not, mark it as unknown.
+    foreach($filenames as $filename) {
+      $full_path = self::backup_dir() . '/' . $filename;
+      if(file_exists($full_path)) {
+	unlink($full_path);
+	$this->files_deleted[] = $filename;
+      } else
+	$this->files_not_found[] = $filename;
+    }
+  }
+
+  /**
+   *  END: Delete Old Backupo Files
+   */
+
+
+
   public function no_content_to_export_notice() {
     echo "<div class=\"error\">No content found to export.</div>";
     remove_action('admin_notices', array( &$this, 'no_content_to_export_notice' ));
-  }
-
-  public function unable_to_create_backups_dir() {
-    echo "<div class=\"warning\">Unable to create the export backup directory in the " . self::backup_dir() . " directory. Please make sure that the web server has write access to this directory.</div>";
-    remove_action('admin_notices', array( &$this, 'unable_to_create_backups_dir' ));
   }
 
   public function content_type_not_activated() {
