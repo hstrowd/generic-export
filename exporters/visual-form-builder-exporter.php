@@ -46,7 +46,7 @@ class VisualFormBuilderExporter implements iGenericExporter {
   }
 
   // Copied directly out of visual-form-builder/class-entries-list.php
-  public function export_entries( $entry_ids = NULL ) {    
+  public function export_entries( Array $entry_ids = NULL ) {    
     global $wpdb;
     
     /* Setup our query to accept selected entry IDs */	
@@ -229,7 +229,7 @@ class VisualFormBuilderExporter implements iGenericExporter {
     return $output;
   }
 
-  public function mark_entries_exported( $entry_ids = NULL ) {
+  public function mark_entries_exported( Array $entry_ids = NULL ) {
     global $wpdb;
     
     /* Setup our query to accept selected entry IDs */	
