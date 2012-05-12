@@ -31,6 +31,8 @@
         </select>
       </div>
       <div class="clear"></div>
+
+      <div class="info">The type of content to be exported. Each of these corresponds to an Exporter class that defines how that specific type of content will be exported. If none of these values are what you were looking for, contact your site administrator.</div>
     </div>
 
     <div id="content_to_export" class="export_option">
@@ -45,6 +47,9 @@
           <span>All Records</span>
         </label>
       </div>
+      <div class="clear"></div>
+
+      <div class="info">The content to be included in the result of the export. 'Records Not Previously Exported' will result in only records that have not been marked as exported being included. 'All Records' will result in every record of this content type being included.</div>
     </div>
 
     <div id="mark_as_exported" class="export_option">
@@ -52,6 +57,9 @@
       <div class="mark_as_exported_selection">
         <input type="checkbox" name="mark-as-exported" value="1" checked>
       </div>
+      <div class="clear"></div>
+
+      <div class="info">Sets whether or not to mark the records returned as having been exported. If this is selected, these entries exported will not appear in subsequent exports with the 'Records Not Previously Exported' option selected.</div>
     </div>
 
     <div id="backup_output" class="export_option">
@@ -59,6 +67,9 @@
       <div class="backup_output_selection">
         <input type="checkbox" name="backup-output" value="1" checked>
       </div>
+      <div class="clear"></div>
+
+      <div class="info">Sets whether or not to store a copy of the exported file on the server. If this is selected, the file will be stored on the server and a link will be provided to it on this page. If this is not selected, the only copy of this file will be the one that is downloaded. NOTE: Marking content as exported without creating a backup on the server is very dangerous and is not advised.</div>
     </div>
 
     <div>
@@ -74,7 +85,7 @@
 <?php
   if(count($export_backups) > 0) { 
  ?>
-<div class="export">
+<div class="backup_files">
   <h3>Export Backups</h3>
   <p>The following backup files are available for downloading:</p>
   <form id="generic-export-delete-backup-files" method="post">
@@ -108,7 +119,7 @@
 <div class="configuration">
   <h3>Plugin Configuration</h3>
   <p>Use the options below to configure the content types that you would like to be exportable:</p>
-  <div class="warning">WARNING: Deactivating a content type will delete the data stored in the database that tracks the content that has already been exported. This will mean that if you reactivate the plugin in the future, your first export will include all records and not just those that were not previously exported. Proceed with caution!</div>
+  <div class="warning notice">WARNING: Deactivating a content type will delete the data stored in the database that tracks the content that has already been exported. This will mean that if you reactivate the plugin in the future, your first export will include all records and not just those that were not previously exported. Proceed with caution!</div>
   <?php
     foreach(GenericExporter::$supported_content_types as $content_type_key => $content_type_array) {
    ?>

@@ -17,7 +17,7 @@ class VisualFormBuilderExporter implements iGenericExporter {
 
     // Add an exported column to the appropriate table.
     global $wpdb;
-    $wpdb->query("ALTER TABLE " . $content_table_name . 
+    $wpdb->query("ALTER TABLE " . $this->entries_table_name . 
 		 " ADD COLUMN exported BOOLEAN NOT NULL DEFAULT FALSE;");
 
     return array('success');

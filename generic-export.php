@@ -26,8 +26,6 @@ License: GPL2
 */
 
 /* TODO List:
-    - Move admin page to the Tools section.
-    - Add written explanation of each config value.
     - Separate exporting and formatting.
     - Add global configuration for how long the backups should be kept for and the directory on the server to use.
     - Add different levels of permissions for activating and exporting.
